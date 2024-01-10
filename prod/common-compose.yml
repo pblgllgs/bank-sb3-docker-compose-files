@@ -10,8 +10,23 @@ services:
       resources:
         limits:
           memory: 700m
+
+  microservice-db-config:
+    extends:
+      service: network-deploy-service
+    deploy:
+      resources:
+        limits:
+          memory: 700m
     environment:
-      RABBITMQ_HOST: rabbitmq
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: password
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --password=password --execute \"SHOW DATABASES;\""
+      interval: 2s
+      timeout: 20s
+      retries: 10
 
   microservice-configserver-config:
     extends:
@@ -22,3 +37,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_HOST: configserver
+    deploy:
+      resources:
+        limits:
+          memory: 700m

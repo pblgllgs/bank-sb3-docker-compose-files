@@ -2,47 +2,37 @@ version: '3.8'
 
 services:
 
-  postgres_db_accounts:
-    container_name: postgres_db_accounts
-    image: postgres:14-alpine3.18
+  mysql_db_accounts:
+    container_name: mysql_db_accounts
+    image: mysql:8.0.32
+    command: --default-authentication-plugin=mysql_native_password
     restart: always
     volumes:
-      - postgres_data_db_accounts:/var/lib/postgresql/data
+      - mysql_data_db_accounts:/var/lib/mysql
     ports:
-      - "5432:5432"
+      - "3306:3306"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: db_accounts
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 2s
-      timeout: 20s
-      retries: 10
+      MYSQL_DATABASE: db_accounts
+    extends:
+      file: common-compose.yml
+      service: microservice-db-config
     networks:
       - accounts-net
 
-  postgres_db_loans:
-    container_name: postgres_db_loans
-    image: postgres:14-alpine3.18
+  mysql_db_loans:
+    container_name: mysql_db_loans
+    image: mysql:8.0.32
+    command: --default-authentication-plugin=mysql_native_password
     restart: always
     volumes:
-      - postgres_data_db_loans:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: db_loans
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 2s
-      timeout: 20s
-      retries: 10
-    expose:
-      - "5431"
+      - mysql_data_db_loans:/var/lib/mysql
     ports:
-      - "5431:5431"
-    command:
-      -p 5431
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: db_loans
+    extends:
+      file: common-compose.yml
+      service: microservice-db-config
     networks:
       - loans-net
 
@@ -54,17 +44,12 @@ services:
     volumes:
       - mysql_data_db_cards:/var/lib/mysql
     ports:
-      - "3306:3306"
+      - "3308:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_USERNAME: mysql
-      MYSQL_PASSWORD: password
       MYSQL_DATABASE: db_cards
-    healthcheck:
-      test: "/usr/bin/mysql --user=root --password=password --execute \"SHOW DATABASES;\""
-      interval: 2s
-      timeout: 20s
-      retries: 10
+    extends:
+      file: common-compose.yml
+      service: microservice-db-config
     networks:
       - cards-net
 
@@ -129,35 +114,13 @@ services:
       file: common-compose.yml
       service: microservice-base-config
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: 'rabbitmq'
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    healthcheck:
-      test: rabbitmq-diagnostics check_port_connectivity
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    volumes:
-      - volume_data_rabbitmq:/var/lib/rabbitmq/mnesia
-    extends:
-      file: common-compose.yml
-      service: network-deploy-service
 
 volumes:
-  postgres_data_db_accounts:
+  mysql_data_db_accounts:
     external: false
-  postgres_data_db_loans:
+  mysql_data_db_loans:
     external: false
   mysql_data_db_cards:
-    external: false
-  volume_data_rabbitmq:
     external: false
 
 networks:
