@@ -116,9 +116,9 @@ services:
 
 
 volumes:
-  postgres_data_db_accounts:
+  mysql_data_db_accounts:
     external: false
-  postgres_data_db_loans:
+  mysql_data_db_loans:
     external: false
   mysql_data_db_cards:
     external: false

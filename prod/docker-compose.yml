@@ -103,7 +103,7 @@ services:
     image: pblgllgs/configserver-sb3:v2
     restart: always
     healthcheck:
-      test: "curl --fail --silent http://localhost:8071/actuator/health/readiness | grep UP || exit 1"
+      test: "curl --fail --silent localhost:8071/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
       timeout: 5s
       retries: 10
@@ -121,11 +121,10 @@ volumes:
     external: false
   mysql_data_db_cards:
     external: false
-  volume_data_rabbitmq:
-    external: false
 
 networks:
   spring:
+    driver: bridge
   accounts-net:
     driver: bridge
   cards-net:
