@@ -37,7 +37,3 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_HOST: configserver
-    deploy:
-      resources:
-        limits:
-          memory: 700m

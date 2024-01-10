@@ -20,7 +20,7 @@ services:
           memory: 700m
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_USERNAME: mysql
+      MYSQL_USERNAME: root
       MYSQL_PASSWORD: password
     healthcheck:
       test: "/usr/bin/mysql --user=root --password=password --execute \"SHOW DATABASES;\""
@@ -36,7 +36,3 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: local
-    deploy:
-      resources:
-        limits:
-          memory: 700m
