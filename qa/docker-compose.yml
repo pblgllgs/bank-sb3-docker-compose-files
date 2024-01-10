@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+
+  postgres_db_accounts:
+    container_name: postgres_db_accounts
+    image: postgres:14-alpine3.18
+    restart: always
+    volumes:
+      - postgres_data_db_accounts:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: db_accounts
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    networks:
+      - accounts-net
+
+  postgres_db_loans:
+    container_name: postgres_db_loans
+    image: postgres:14-alpine3.18
+    restart: always
+    volumes:
+      - postgres_data_db_loans:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: db_loans
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    expose:
+      - "5431"
+    ports:
+      - "5431:5431"
+    command:
+      -p 5431
+    networks:
+      - loans-net
+
+  mysql_db_cards:
+    container_name: mysql_db_cards
+    image: mysql:8.0.32
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    volumes:
+      - mysql_data_db_cards:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_USERNAME: mysql
+      MYSQL_PASSWORD: password
+      MYSQL_DATABASE: db_cards
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --password=password --execute \"SHOW DATABASES;\""
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    networks:
+      - cards-net
+
+  accounts:
+    container_name: accounts
+    image: pblgllgs/accounts-sb3:1.0.0
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres_db_accounts:
+        condition: service_healthy
+    extends:
+      file: common-compose.yml
+      service: microservice-configserver-config
+    networks:
+      - accounts-net
+
+  loans:
+    container_name: loans
+    image: pblgllgs/loans-sb3:1.0.0
+    restart: always
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres_db_loans:
+        condition: service_healthy
+    extends:
+      file: common-compose.yml
+      service: microservice-configserver-config
+    networks:
+      - loans-net
+
+  cards:
+    container_name: cards
+    image: pblgllgs/cards-sb3:1.0.0
+    restart: always
+    ports:
+      - "9000:9000"
+    depends_on:
+      mysql_db_cards:
+        condition: service_healthy
+    extends:
+      file: common-compose.yml
+      service: microservice-configserver-config
+    networks:
+      - cards-net
+
+  configserver:
+    container_name: configserver
+    image: pblgllgs/configserver-sb3:1.0.0
+    restart: always
+    healthcheck:
+      test: "curl --fail --silent http://localhost:8071/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "8071:8071"
+    extends:
+      file: common-compose.yml
+      service: microservice-base-config
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - volume_data_rabbitmq:/var/lib/rabbitmq/mnesia
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
+volumes:
+  postgres_data_db_accounts:
+    external: false
+  postgres_data_db_loans:
+    external: false
+  mysql_data_db_cards:
+    external: false
+  volume_data_rabbitmq:
+    external: false
+
+networks:
+  spring:
+    driver: bridge
+  accounts-net:
+    driver: bridge
+  cards-net:
+    driver: bridge
+  loans-net:
+    driver: bridge
