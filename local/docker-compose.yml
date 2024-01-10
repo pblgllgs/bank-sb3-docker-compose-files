@@ -60,7 +60,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      postgres_db_accounts:
+      mysql_db_accounts:
         condition: service_healthy
     extends:
       file: common-compose.yml
@@ -75,7 +75,7 @@ services:
     ports:
       - "8090:8090"
     depends_on:
-      postgres_db_loans:
+      mysql_db_loans:
         condition: service_healthy
     extends:
       file: common-compose.yml
