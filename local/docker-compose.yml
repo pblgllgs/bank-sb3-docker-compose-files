@@ -114,6 +114,42 @@ services:
       file: common-compose.yml
       service: microservice-base-config
 
+  eurekaserver:
+    container_name: eurekaserver
+    image: pblgllgs/eurekaserver-sb3:v2
+    restart: always
+    environment:
+      SPRING_APPLICATION_NAME: eurekaserver
+    healthcheck:
+      test: "curl --fail --silent localhost:8070/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "8070:8070"
+    extends:
+      file: common-compose.yml
+      service: microservice-configserver-config
+
+  gatewayserver:
+    container_name: gatewayserver
+    image: pblgllgs/gatewayserver-sb3:v2
+    restart: always
+    environment:
+      SPRING_APPLICATION_NAME: gatewayserver
+    healthcheck:
+      test: "curl --fail --silent localhost:8072/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "8072:8072"
+    extends:
+      file: common-compose.yml
+      service: microservice-configserver-config
+
 
 volumes:
   mysql_data_db_accounts:
