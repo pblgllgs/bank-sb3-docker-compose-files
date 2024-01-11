@@ -37,3 +37,10 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       CONFIG_SERVER_HOST: configserver
+
+  microservice-eurekaserver-config:
+    extends:
+      service: microservice-configserver-config
+    depends_on:
+      eurekaserver:
+        condition: service_healthy

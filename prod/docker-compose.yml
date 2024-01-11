@@ -59,12 +59,14 @@ services:
     restart: always
     ports:
       - "8080:8080"
+    environment:
+      SPRING_APPLICATION_NAME: accounts
     depends_on:
       mysql_db_accounts:
         condition: service_healthy
     extends:
       file: common-compose.yml
-      service: microservice-configserver-config
+      service: microservice-eurekaserver-config
     networks:
       - accounts-net
 
@@ -74,12 +76,14 @@ services:
     restart: always
     ports:
       - "8090:8090"
+    environment:
+      SPRING_APPLICATION_NAME: loans
     depends_on:
       mysql_db_loans:
         condition: service_healthy
     extends:
       file: common-compose.yml
-      service: microservice-configserver-config
+      service: microservice-eurekaserver-config
     networks:
       - loans-net
 
@@ -89,12 +93,14 @@ services:
     restart: always
     ports:
       - "9000:9000"
+    environment:
+      SPRING_APPLICATION_NAME: cards
     depends_on:
       mysql_db_cards:
         condition: service_healthy
     extends:
       file: common-compose.yml
-      service: microservice-configserver-config
+      service: microservice-eurekaserver-config
     networks:
       - cards-net
 
@@ -102,6 +108,8 @@ services:
     container_name: configserver
     image: pblgllgs/configserver-sb3:v2
     restart: always
+    environment:
+      SPRING_APPLICATION_NAME: configserver
     healthcheck:
       test: "curl --fail --silent localhost:8071/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
@@ -113,6 +121,24 @@ services:
     extends:
       file: common-compose.yml
       service: microservice-base-config
+
+  eurekaserver:
+    container_name: eurekaserver
+    image: pblgllgs/eurekaserver-sb3:v2
+    restart: always
+    environment:
+      SPRING_APPLICATION_NAME: eurekaserver
+    healthcheck:
+      test: "curl --fail --silent localhost:8070/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "8070:8070"
+    extends:
+      file: common-compose.yml
+      service: microservice-configserver-config
 
 volumes:
   mysql_data_db_accounts:
