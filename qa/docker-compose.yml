@@ -2,6 +2,205 @@ version: '3.8'
 
 services:
 
+  read:
+    image: grafana/loki:2.9.2
+    command: "-config.file=/etc/loki/config.yaml -target=read"
+    ports:
+      - 3101:3100
+      - 7946
+      - 9095
+    volumes:
+      - ../observability/loki/loki-config.yaml:/etc/loki/config.yaml
+    depends_on:
+      - minio
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: &loki-dns
+      spring:
+        aliases:
+          - loki
+
+  write:
+    image: grafana/loki:2.9.2
+    command: "-config.file=/etc/loki/config.yaml -target=write"
+    ports:
+      - 3102:3100
+      - 7946
+      - 9095
+    volumes:
+      - ../observability/loki/loki-config.yaml:/etc/loki/config.yaml
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - minio
+    networks:
+      <<: *loki-dns
+
+  promtail:
+    image: grafana/promtail:2.9.2
+    volumes:
+      - ../observability/promtail/promtail-local-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - gateway
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
+  minio:
+    image: minio/minio
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        mkdir -p /data/loki-data && \
+        mkdir -p /data/loki-ruler && \
+        minio server /data
+    environment:
+      - MINIO_ROOT_USER=loki
+      - MINIO_ROOT_PASSWORD=supersecret
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
+      - MINIO_UPDATE=off
+    ports:
+      - 9000
+    volumes:
+      - ./.data/minio:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 15s
+      timeout: 20s
+      retries: 5
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
+  tempo:
+    image: grafana/tempo
+    container_name: tempo
+    command: -config.file /etc/tempo-config.yml
+    ports:
+      - "3110:3100"
+      - "4317:4317"
+    volumes:
+      - ../observability/tempo/tempo.yml:/etc/tempo-config.yml
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    depends_on:
+      - gateway
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        /run.sh
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../observability/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
+  gateway:
+    image: nginx:latest
+    depends_on:
+      - read
+      - write
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        cat <<EOF > /etc/nginx/nginx.conf
+        user  nginx;
+        worker_processes  5;  ## Default: 1
+
+        events {
+          worker_connections   1000;
+        }
+
+        http {
+          resolver 127.0.0.11;
+
+          server {
+            listen             3100;
+
+            location = / {
+              return 200 'OK';
+              auth_basic off;
+            }
+
+            location = /api/prom/push {
+              proxy_pass       http://write:3100\$$request_uri;
+            }
+
+            location = /api/prom/tail {
+              proxy_pass       http://read:3100\$$request_uri;
+              proxy_set_header Upgrade \$$http_upgrade;
+              proxy_set_header Connection "upgrade";
+            }
+
+            location ~ /api/prom/.* {
+              proxy_pass       http://read:3100\$$request_uri;
+            }
+
+            location = /loki/api/v1/push {
+              proxy_pass       http://write:3100\$$request_uri;
+            }
+
+            location = /loki/api/v1/tail {
+              proxy_pass       http://read:3100\$$request_uri;
+              proxy_set_header Upgrade \$$http_upgrade;
+              proxy_set_header Connection "upgrade";
+            }
+
+            location ~ /loki/api/.* {
+              proxy_pass       http://read:3100\$$request_uri;
+            }
+          }
+        }
+        EOF
+        /docker-entrypoint.sh nginx -g "daemon off;"
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: [ "CMD", "service", "nginx", "status" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
   mysql_db_accounts:
     container_name: mysql_db_accounts
     image: mysql:8.0.32
@@ -55,55 +254,67 @@ services:
 
   accounts:
     container_name: accounts
-    image: pblgllgs/accounts-sb3:v2
+    image: pblgllgs/accounts-sb3:${VERSION}
     restart: always
     ports:
       - "8080:8080"
+    environment:
+      SPRING_APPLICATION_NAME: accounts
+      OTEL_SERVICE_NAME: accounts
     depends_on:
-      postgres_db_accounts:
+      mysql_db_accounts:
         condition: service_healthy
     extends:
       file: common-compose.yml
-      service: microservice-configserver-config
+      service: microservice-eurekaserver-config
     networks:
       - accounts-net
 
   loans:
     container_name: loans
-    image: pblgllgs/loans-sb3:v2
+    image: pblgllgs/loans-sb3:${VERSION}
     restart: always
     ports:
       - "8090:8090"
+    environment:
+      SPRING_APPLICATION_NAME: loans
+      OTEL_SERVICE_NAME: loans
     depends_on:
-      postgres_db_loans:
+      mysql_db_loans:
         condition: service_healthy
     extends:
       file: common-compose.yml
-      service: microservice-configserver-config
+      service: microservice-eurekaserver-config
     networks:
       - loans-net
 
   cards:
     container_name: cards
-    image: pblgllgs/cards-sb3:v2
+    image: pblgllgs/cards-sb3:${VERSION}
     restart: always
     ports:
       - "9000:9000"
+    environment:
+      SPRING_APPLICATION_NAME: cards
+      OTEL_SERVICE_NAME: cards
     depends_on:
       mysql_db_cards:
         condition: service_healthy
     extends:
       file: common-compose.yml
-      service: microservice-configserver-config
+      service: microservice-eurekaserver-config
     networks:
       - cards-net
 
   configserver:
     container_name: configserver
-    image: pblgllgs/configserver-sb3:v2
+    image: pblgllgs/configserver-sb3:${VERSION}
     restart: always
+    environment:
+      SPRING_APPLICATION_NAME: configserver
+      OTEL_SERVICE_NAME: configserver
     healthcheck:
-      test: "curl --fail --silent http://localhost:8071/actuator/health/readiness | grep UP || exit 1"
+      test: "curl --fail --silent localhost:8071/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
       timeout: 5s
       retries: 10
@@ -116,10 +327,11 @@ services:
 
   eurekaserver:
     container_name: eurekaserver
-    image: pblgllgs/eurekaserver-sb3:v2
+    image: pblgllgs/eurekaserver-sb3:${VERSION}
     restart: always
     environment:
       SPRING_APPLICATION_NAME: eurekaserver
+      OTEL_SERVICE_NAME: eurekaserver
     healthcheck:
       test: "curl --fail --silent localhost:8070/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
@@ -134,10 +346,11 @@ services:
 
   gatewayserver:
     container_name: gatewayserver
-    image: pblgllgs/gatewayserver-sb3:v2
+    image: pblgllgs/gatewayserver-sb3:${VERSION}
     restart: always
     environment:
       SPRING_APPLICATION_NAME: gatewayserver
+      OTEL_SERVICE_NAME: gatewayserver
     healthcheck:
       test: "curl --fail --silent localhost:8072/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
@@ -163,6 +376,16 @@ services:
       file: common-compose.yml
       service: microservice-configserver-config
 
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:22.0.1
+    ports:
+      - "7080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command:
+      - start-dev
 
 volumes:
   mysql_data_db_accounts:
