@@ -92,6 +92,19 @@ services:
       file: common-compose.yml
       service: network-deploy-service
 
+  tempo:
+    image: grafana/tempo
+    container_name: tempo
+    command: -config.file /etc/tempo-config.yml
+    ports:
+      - "3110:3100"
+      - "4317:4317"
+    volumes:
+      - ../observability/tempo/tempo.yml:/etc/tempo-config.yml
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
   grafana:
     image: grafana/grafana:latest
     environment:
@@ -241,12 +254,13 @@ services:
 
   accounts:
     container_name: accounts
-    image: pblgllgs/accounts-sb3:v2
+    image: pblgllgs/accounts-sb3:${VERSION}
     restart: always
     ports:
       - "8080:8080"
     environment:
       SPRING_APPLICATION_NAME: accounts
+      OTEL_SERVICE_NAME: accounts
     depends_on:
       mysql_db_accounts:
         condition: service_healthy
@@ -258,12 +272,13 @@ services:
 
   loans:
     container_name: loans
-    image: pblgllgs/loans-sb3:v2
+    image: pblgllgs/loans-sb3:${VERSION}
     restart: always
     ports:
       - "8090:8090"
     environment:
       SPRING_APPLICATION_NAME: loans
+      OTEL_SERVICE_NAME: loans
     depends_on:
       mysql_db_loans:
         condition: service_healthy
@@ -275,12 +290,13 @@ services:
 
   cards:
     container_name: cards
-    image: pblgllgs/cards-sb3:v2
+    image: pblgllgs/cards-sb3:${VERSION}
     restart: always
     ports:
       - "9000:9000"
     environment:
       SPRING_APPLICATION_NAME: cards
+      OTEL_SERVICE_NAME: cards
     depends_on:
       mysql_db_cards:
         condition: service_healthy
@@ -292,10 +308,11 @@ services:
 
   configserver:
     container_name: configserver
-    image: pblgllgs/configserver-sb3:v2
+    image: pblgllgs/configserver-sb3:${VERSION}
     restart: always
     environment:
       SPRING_APPLICATION_NAME: configserver
+      OTEL_SERVICE_NAME: configserver
     healthcheck:
       test: "curl --fail --silent localhost:8071/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
@@ -310,10 +327,11 @@ services:
 
   eurekaserver:
     container_name: eurekaserver
-    image: pblgllgs/eurekaserver-sb3:v2
+    image: pblgllgs/eurekaserver-sb3:${VERSION}
     restart: always
     environment:
       SPRING_APPLICATION_NAME: eurekaserver
+      OTEL_SERVICE_NAME: eurekaserver
     healthcheck:
       test: "curl --fail --silent localhost:8070/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
@@ -328,10 +346,11 @@ services:
 
   gatewayserver:
     container_name: gatewayserver
-    image: pblgllgs/gatewayserver-sb3:v2
+    image: pblgllgs/gatewayserver-sb3:${VERSION}
     restart: always
     environment:
       SPRING_APPLICATION_NAME: gatewayserver
+      OTEL_SERVICE_NAME: gatewayserver
     healthcheck:
       test: "curl --fail --silent localhost:8072/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
