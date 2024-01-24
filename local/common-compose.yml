@@ -35,8 +35,5 @@ services:
   microservice-configserver-config:
     extends:
       service: microservice-base-config
-    depends_on:
-      configserver:
-        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: local

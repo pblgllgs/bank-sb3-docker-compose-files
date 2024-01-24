@@ -351,6 +351,7 @@ services:
     environment:
       SPRING_APPLICATION_NAME: gatewayserver
       OTEL_SERVICE_NAME: gatewayserver
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK-SET-URI: "http://keycloak:8080/realms/master/protocol/openid-connect/certs"
     healthcheck:
       test: "curl --fail --silent localhost:8072/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
@@ -384,8 +385,12 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-    command:
-      - start-dev
+    command: [ "start-dev","--import-realm" ]
+    volumes:
+      - keycloak_reamls_data:/opt/keycloak/data/
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
 
 volumes:
   mysql_data_db_accounts:
@@ -393,6 +398,8 @@ volumes:
   mysql_data_db_loans:
     external: false
   mysql_data_db_cards:
+    external: false
+  keycloak_reamls_data:
     external: false
 
 networks:

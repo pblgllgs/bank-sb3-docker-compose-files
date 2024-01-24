@@ -74,8 +74,12 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-    command:
-      - start-dev
+    command: [ "start-dev","--import-realm" ]
+    volumes:
+      - keycloak_reamls_data:/opt/keycloak/data/
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
 
 volumes:
   mysql_data_db_accounts:
@@ -83,6 +87,8 @@ volumes:
   mysql_data_db_loans:
     external: false
   mysql_data_db_cards:
+    external: false
+  keycloak_reamls_data:
     external: false
 
 networks:
