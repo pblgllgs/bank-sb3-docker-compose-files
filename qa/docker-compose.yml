@@ -363,6 +363,17 @@ services:
     extends:
       file: common-compose.yml
       service: microservice-configserver-config
+  message:
+    image: pblgllgs/message-sb3:${VERSION}
+    container_name: message
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+    extends:
+      file: common-config.yml
+      service: network-deploy-service
 
   redis_rate_limiter:
     image: redis:latest

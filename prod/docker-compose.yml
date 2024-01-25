@@ -261,7 +261,7 @@ services:
     environment:
       SPRING_APPLICATION_NAME: accounts
       OTEL_SERVICE_NAME: accounts
-      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_HOST: rabbit
     depends_on:
       mysql_db_accounts:
         condition: service_healthy
@@ -365,6 +365,18 @@ services:
       file: common-compose.yml
       service: microservice-configserver-config
 
+  message:
+    image: pblgllgs/message-sb3:${VERSION}
+    container_name: message
+    depends_on:
+      rabbit:
+        condition: service_healthy
+    environment:
+      SPRING_RABBITMQ_HOST: rabbit
+    extends:
+      file: common-compose.yml
+      service: network-deploy-service
+
   redis_rate_limiter:
     image: redis:latest
     container_name: redis_rate_limiter
@@ -393,9 +405,10 @@ services:
       file: common-compose.yml
       service: network-deploy-service
 
-  rabbitmq:
+  rabbit:
     image: rabbitmq:3-management-alpine
-    container_name: 'rabbitmq'
+    container_name: rabbit
+    hostname: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
